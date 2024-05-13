@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rest-company
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rest-company
+  template:
+    metadata:
+      labels:
+        app: rest-company
+    spec:
+      containers:
+        - name: rest-company
+          image: fcracker79/k8s-experiment-company:{{ .Values.images.rest_company.version }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
