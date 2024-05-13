@@ -1,0 +1,5 @@
+images:
+        rest_company:
+                version: 0.0.1
+        grpc_user:
+                version: 0.0.1
