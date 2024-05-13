@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  k8s-experiment:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2024-05-13T22:44:09.473641673+02:00"
+    description: A Helm chart for Kubernetes
+    digest: f527ff13487a63220e42a2e2021640f654b46e8a6c481edb83d03ac8ff82f7e6
+    name: k8s-experiment
+    type: application
+    urls:
+    - package/k8s-experiment-0.1.0.tgz
+    version: 0.1.0
+generated: "2024-05-13T22:44:09.473357114+02:00"
