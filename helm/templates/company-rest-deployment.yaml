@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: rest-company
-          image: fcracker79/k8s-experiment-company:{{ .Values.images.rest_company.version }}
+          image: {{ .Values.images.rest_company.repository }}:{{ .Values.images.rest_company.tag }}
           ports:
             - name: http
               containerPort: 8080

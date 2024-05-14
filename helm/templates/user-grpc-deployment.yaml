@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: grpc-user
-          image: fcracker79/k8s-experiment-user:{{ .Values.images.grpc_user.version }}
+          image: {{ .Values.images.grpc_user.repository }}:{{ .Values.images.grpc_user.tag }}
           ports:
             - name: http
               containerPort: 8080

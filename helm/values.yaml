@@ -1,5 +1,7 @@
 images:
-        rest_company:
-                version: 0.0.1
-        grpc_user:
-                version: 0.0.1
+    rest_company:
+        repository: fcracker79/k8s-experiment-company
+        tag: 0.0.1
+    grpc_user:
+        repository: fcracker79/k8s-experiment-user
+        tag: 0.0.1

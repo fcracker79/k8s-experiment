@@ -1,0 +1,18 @@
+apiVersion: skaffold/v4beta10
+kind: Config
+build:
+    artifacts:
+        - image: registry.hub.docker.com/fcracker79/k8s-experiment-company
+          context: ../docker/rest/company  
+        - image: registry.hub.docker.com/fcracker79/k8s-experiment-user
+          context: ../docker/grpc/user  
+deploy:
+    helm:
+        releases:
+            - name: k8s-experiment
+              setValueTemplates:
+                  images.rest_company.repository: "{{.IMAGE_REPO_registry_hub_docker_com_fcracker79_k8s_experiment_company}}"
+                  images.rest_company.tag: "{{.IMAGE_TAG_registry_hub_docker_com_fcracker79_k8s_experiment_company}}@{{.IMAGE_DIGEST_registry_hub_docker_com_fcracker79_k8s_experiment_company}}"
+                  images.grpc_user.repository: "{{.IMAGE_REPO_registry_hub_docker_com_fcracker79_k8s_experiment_user}}"
+                  images.grpc_user.tag: "{{.IMAGE_TAG_registry_hub_docker_com_fcracker79_k8s_experiment_user}}@{{.IMAGE_DIGEST_registry_hub_docker_com_fcracker79_k8s_experiment_user}}"
+
