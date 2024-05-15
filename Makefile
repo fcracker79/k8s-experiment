@@ -18,6 +18,6 @@ install-chart:
 	helm upgrade test-release helm --namespace test --install
 
 package-chart:
-	helm package helm -d helm/package
+	helm package helm -d helm/artifacthub/package
 	helm repo index helm
-	mv helm/index.yaml helm/package
+	mv helm/index.yaml helm/artifacthub
