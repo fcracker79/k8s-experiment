@@ -4,7 +4,10 @@ build-rest:
 build-grpc:
 	docker build -t fcracker79/k8s-experiment-user:0.0.1 docker/grpc/user
 
-build-images: build-rest build-grpc
+build-apigw:
+	docker build -t fcracker79/k8s-experiment-apigw:0.0.1 docker/rest/apigw
+
+build-images: build-rest build-grpc build-apigw
 
 deploy-grpc: build-grpc
 	docker push fcracker79/k8s-experiment-user:0.0.1
@@ -12,7 +15,10 @@ deploy-grpc: build-grpc
 deploy-rest: build-rest
 	docker push fcracker79/k8s-experiment-company:0.0.1
 
-deploy-images: deploy-rest deploy-grpc
+deploy-apigw: build-apigw
+	docker push fcracker79/k8s-experiment-apigw:0.0.1
+
+deploy-images: deploy-rest deploy-grpc deploy-apigw
 
 install-chart:
 	helm upgrade test-release helm --namespace test --install
