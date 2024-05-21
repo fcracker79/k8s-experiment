@@ -21,3 +21,6 @@ package-chart:
 	helm package helm -d helm/artifacthub/package
 	helm repo index helm
 	mv helm/index.yaml helm/artifacthub
+
+run:
+	cd skaffold && skaffold run
