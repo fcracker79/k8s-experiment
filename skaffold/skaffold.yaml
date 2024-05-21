@@ -15,8 +15,9 @@ deploy:
             - name: k8s-experiment
               chartPath: ../helm
               namespace: k8s-experiment
-              # Later we will annotate the namespace using k8s manifests in order to activate linkerd
-              createNamespace: true
+              # I had to create it separately as I needed to annotate it with
+              # the Linkerd annotation
+              createNamespace: false
               setValueTemplates:
                   images.rest_company.repository: "{{.IMAGE_REPO_registry_hub_docker_com_fcracker79_k8s_experiment_company}}"
                   images.rest_company.tag: "{{.IMAGE_TAG_registry_hub_docker_com_fcracker79_k8s_experiment_company}}@{{.IMAGE_DIGEST_registry_hub_docker_com_fcracker79_k8s_experiment_company}}"
