@@ -15,7 +15,10 @@ spec:
       containers:
         - name: grpc-user
           image: {{ .Values.images.grpc_user.repository }}:{{ .Values.images.grpc_user.tag }}
+          env:
+             - name: TCP_PORT
+               value: "{{ .Values.endpoints.services.grpc.user_service.targetPort }}"
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: {{ .Values.endpoints.services.grpc.user_service.targetPort }}
               protocol: TCP

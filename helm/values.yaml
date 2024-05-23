@@ -5,3 +5,22 @@ images:
     grpc_user:
         repository: fcracker79/k8s-experiment-user
         tag: 0.0.1
+    apigw:
+        repository: fcracker79/k8s-experiment-apigw
+        tag: 0.0.1
+endpoints:
+    services:
+        rest:
+            company_service:
+                name: company-service
+                targetPort: 8080
+                port: 8080
+        grpc:
+            user_service:
+                name: user-service
+                targetPort: 8080
+                port: 8080
+        apigw:
+            name: apigw-service
+            port: 8080
+            targetPort: 8080

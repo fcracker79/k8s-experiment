@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"database/sql"
+    "fmt"
 	"log"
 	"net"
+    "os"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -63,6 +65,14 @@ func (s *server) DeleteUser(ctx context.Context, in *pb.User) (*pb.User, error) 
 	return in, nil
 }
 
+func getEnvString(env string) string {
+    if envVar, exists := os.LookupEnv(env); exists {
+        return envVar
+    } else {
+        panic(fmt.Sprintf("%s not set", env))
+    }
+}
+
 func main() {
 	db, err := sql.Open("sqlite", "./user.db")
 	if err != nil {
@@ -70,7 +80,8 @@ func main() {
 	}
 	defer db.Close()
 
-	lis, err := net.Listen("tcp", ":8080")
+    tcpPort := getEnvString("TCP_PORT")
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", tcpPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -78,7 +89,7 @@ func main() {
 	s := grpc.NewServer()
 	pb.RegisterUserServiceServer(s, &server{db: db})
 
-	log.Printf("Server listening on port 8080")
+	log.Printf("Server listening on port %s", tcpPort)
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}

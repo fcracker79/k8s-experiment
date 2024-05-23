@@ -5,6 +5,7 @@ import (
     "encoding/json"
     "fmt"
     "net/http"
+    "os"
     "time"
 
     _ "modernc.org/sqlite"
@@ -20,6 +21,14 @@ type Company struct {
 }
 
 var db *sql.DB
+
+func getEnvString(env string) string {
+    if envVar, exists := os.LookupEnv(env); exists {
+        return envVar
+    } else {
+        panic(fmt.Sprintf("%s not set", env))
+    }
+}
 
 func main() {
     db = InitDB("./storage.db")
@@ -37,7 +46,7 @@ func main() {
         })
     })
 
-    http.ListenAndServe(":8080", r)
+    http.ListenAndServe(fmt.Sprintf(":%s", getEnvString("TCP_PORT")), r)
 }
 
 func InitDB(filepath string) *sql.DB {

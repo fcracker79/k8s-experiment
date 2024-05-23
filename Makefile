@@ -5,7 +5,7 @@ build-grpc:
 	docker build -t fcracker79/k8s-experiment-user:0.0.1 docker/grpc/user
 
 build-apigw:
-	docker build -t fcracker79/k8s-experiment-apigw:0.0.1 docker/rest/apigw
+	docker build -t fcracker79/k8s-experiment-apigw:0.0.1 docker/apigw
 
 build-images: build-rest build-grpc build-apigw
 
@@ -30,3 +30,6 @@ package-chart:
 
 run:
 	cd skaffold && skaffold run
+
+stop:
+	cd skaffold && skaffold delete

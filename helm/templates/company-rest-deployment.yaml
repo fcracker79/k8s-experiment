@@ -15,7 +15,10 @@ spec:
       containers:
         - name: rest-company
           image: {{ .Values.images.rest_company.repository }}:{{ .Values.images.rest_company.tag }}
+          env:
+             - name: TCP_PORT
+               value: "{{ .Values.endpoints.services.rest.company_service.targetPort }}"
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: {{ .Values.endpoints.services.rest.company_service.targetPort }}
               protocol: TCP

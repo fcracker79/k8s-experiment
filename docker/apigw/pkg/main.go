@@ -43,11 +43,11 @@ func main() {
 }
 
 func getUserGrpcEndpoint() string {
-    return getEnvString("GRPC_USER_ENDPOINT")
+    return fmt.Sprintf("%s:%s", getEnvString("GRPC_USER_HOST"), getEnvString("GRPC_USER_PORT"))
 }
 
 func getCompanyHttpEndpoint() string {
-    return getEnvString("HTTP_COMPANY_ENDPOINT")
+    return fmt.Sprintf("http://%s:%s", getEnvString("REST_COMPANY_HOST"), getEnvString("REST_COMPANY_PORT"))
 }
 
 func getEnvString(env string) string {

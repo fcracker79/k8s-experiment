@@ -1,14 +1,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: grpc-user
+  name: {{ .Values.endpoints.services.grpc.user_service.name }}
   labels:
     app: grpc-user
 spec:
   type: ClusterIP
   ports:
-    - port: 8080
-      targetPort: 8080
+    - port: {{ .Values.endpoints.services.grpc.user_service.port }}
+      targetPort: {{ .Values.endpoints.services.grpc.user_service.targetPort }}
       protocol: TCP
       name: http
   selector:

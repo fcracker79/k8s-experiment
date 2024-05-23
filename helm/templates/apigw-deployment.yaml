@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apigw
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: apigw
+  template:
+    metadata:
+      labels:
+        app: apigw
+    spec:
+      containers:
+        - name: apigw
+          image: {{ .Values.images.apigw.repository }}:{{ .Values.images.apigw.tag }}
+          env:
+             - name: TCP_PORT
+               value: "{{ .Values.endpoints.services.apigw.targetPort }}"
+             - name: HTTP_COMPANY_HOST
+               value: {{ .Values.endpoints.services.rest.company_service.name }}
+             - name: HTTP_COMPANY_PORT
+               value: "{{ .Values.endpoints.services.rest.company_service.port }}"
+             - name: GRPC_USER_HOST
+               value: {{ .Values.endpoints.services.grpc.user_service.name }}
+             - name: GRPC_USER_PORT
+               value: "{{ .Values.endpoints.services.grpc.user_service.port }}"
+          ports:
+            - name: http
+              containerPort: {{ .Values.endpoints.services.apigw.targetPort }}
+              protocol: TCP
