@@ -39,7 +39,9 @@ func main() {
     r.Post("/companies", createCompany)
     r.Delete("/companies/{id}", deleteCompany)
 
-    http.ListenAndServe(":3000", r)
+    tcpPort := getEnvString("TCP_PORT")
+    fmt.Printf("Listening port %s\n", tcpPort)
+    http.ListenAndServe(fmt.Sprintf(":%s", tcpPort), r)
 }
 
 func getUserGrpcEndpoint() string {

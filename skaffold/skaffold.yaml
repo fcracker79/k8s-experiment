@@ -5,7 +5,9 @@ build:
         - image: registry.hub.docker.com/fcracker79/k8s-experiment-company
           context: ../docker/rest/company  
         - image: registry.hub.docker.com/fcracker79/k8s-experiment-user
-          context: ../docker/grpc/user  
+          context: ../docker/grpc/user
+        - image: registry.hub.docker.com/fcracker79/k8s-experiment-apigw
+          context: ../docker/apigw
 manifests:
     rawYaml:
         - ../k8s/*
