@@ -18,9 +18,9 @@ spec:
           env:
              - name: TCP_PORT
                value: "{{ .Values.endpoints.services.apigw.targetPort }}"
-             - name: HTTP_COMPANY_HOST
+             - name: REST_COMPANY_HOST
                value: {{ .Values.endpoints.services.rest.company_service.name }}
-             - name: HTTP_COMPANY_PORT
+             - name: REST_COMPANY_PORT
                value: "{{ .Values.endpoints.services.rest.company_service.port }}"
              - name: GRPC_USER_HOST
                value: {{ .Values.endpoints.services.grpc.user_service.name }}

@@ -73,12 +73,29 @@ func getEnvString(env string) string {
     }
 }
 
+func CreateTable(db *sql.DB) {
+    sql_table := `
+    CREATE TABLE IF NOT EXISTS users(
+        id TEXT NOT NULL PRIMARY KEY,
+        name TEXT,
+        description TEXT,
+        created_at TIMESTAMP,
+        updated_at TIMESTAMP);
+    `
+
+    _, err := db.Exec(sql_table)
+    if err != nil {
+        panic(err)
+    }
+}
+
 func main() {
 	db, err := sql.Open("sqlite", "./user.db")
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
 	defer db.Close()
+    CreateTable(db)
 
     tcpPort := getEnvString("TCP_PORT")
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", tcpPort))
