@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc"
 	pb "github.com/fcracker79/k8s-experiment/docker/grpc/user/proto"
 )
-
+ 
 type server struct {
 	pb.UnimplementedUserServiceServer
 	db *sql.DB
