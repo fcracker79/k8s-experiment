@@ -29,7 +29,10 @@ package-chart:
 	mv helm/index.yaml helm/artifacthub
 
 run:
-	cd skaffold && skaffold run
+	cd skaffold && skaffold run --namespace=k8s-experiment
+
+dev:
+	cd skaffold && skaffold dev --namespace=k8s-experiment
 
 stop:
-	cd skaffold && skaffold delete
+	cd skaffold && skaffold delete --namespace=k8s-experiment

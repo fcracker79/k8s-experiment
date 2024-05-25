@@ -20,11 +20,11 @@ type server struct {
 }
 
 func (s *server) CreateUser(ctx context.Context, in *pb.User) (*pb.User, error) {
-	stmt, err := s.db.Prepare("INSERT INTO users(name, description, created_at, updated_at) VALUES(?,?,?,?)")
+	stmt, err := s.db.Prepare("INSERT INTO users(id, name, description, created_at, updated_at) VALUES(?,?,?,?,?)")
 	if err != nil {
 		return nil, err
 	}
-	_, err = stmt.Exec(in.Name, in.Description, in.CreatedAt, in.UpdatedAt)
+	_, err = stmt.Exec(in.Id, in.Name, in.Description, in.CreatedAt, in.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
