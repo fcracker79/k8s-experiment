@@ -174,7 +174,7 @@ func createCompany(w http.ResponseWriter, r *http.Request) {
 
     jsonStr := string(body)
 
-    resp, err := http.Post(fmt.Sprintf("%s//companies", getCompanyHttpEndpoint()), "application/json", strings.NewReader(jsonStr))
+    resp, err := http.Post(fmt.Sprintf("%s/companies", getCompanyHttpEndpoint()), "application/json", strings.NewReader(jsonStr))
     if err != nil {
         log.Fatalf("could not create company: %v", err)
     }
