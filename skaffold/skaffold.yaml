@@ -4,10 +4,16 @@ build:
     artifacts:
         - image: registry.hub.docker.com/fcracker79/k8s-experiment-company
           context: ../docker/rest/company  
+          sync:
+              auto: true
         - image: registry.hub.docker.com/fcracker79/k8s-experiment-user
           context: ../docker/grpc/user
+          sync:
+              auto: true
         - image: registry.hub.docker.com/fcracker79/k8s-experiment-apigw
           context: ../docker/apigw
+          sync:
+              auto: true
 manifests:
     rawYaml:
         - ../k8s/*
@@ -25,4 +31,6 @@ deploy:
                   images.rest_company.tag: "{{.IMAGE_TAG_registry_hub_docker_com_fcracker79_k8s_experiment_company}}@{{.IMAGE_DIGEST_registry_hub_docker_com_fcracker79_k8s_experiment_company}}"
                   images.grpc_user.repository: "{{.IMAGE_REPO_registry_hub_docker_com_fcracker79_k8s_experiment_user}}"
                   images.grpc_user.tag: "{{.IMAGE_TAG_registry_hub_docker_com_fcracker79_k8s_experiment_user}}@{{.IMAGE_DIGEST_registry_hub_docker_com_fcracker79_k8s_experiment_user}}"
+                  images.apigw.repository: "{{.IMAGE_REPO_registry_hub_docker_com_fcracker79_k8s_experiment_apigw}}"
+                  images.apigw.tag: "{{.IMAGE_TAG_registry_hub_docker_com_fcracker79_k8s_experiment_apigw}}@{{.IMAGE_DIGEST_registry_hub_docker_com_fcracker79_k8s_experiment_apigw}}"
 

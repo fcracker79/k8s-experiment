@@ -2,6 +2,7 @@ Install
 =======
 
 ```
+skaffold config set --global local-cluster true
 minikube addons enable ingress
 curl -sL run.linkerd.io/install | sh
 linkerd check --pre                     # validate that Linkerd can be installed
