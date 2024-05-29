@@ -5,15 +5,18 @@ build:
         - image: registry.hub.docker.com/fcracker79/k8s-experiment-company
           context: ../docker/rest/company  
           sync:
-              auto: true
+              infer:
+                  - '**/*'
         - image: registry.hub.docker.com/fcracker79/k8s-experiment-user
           context: ../docker/grpc/user
           sync:
-              auto: true
+              infer:
+                  - '**/*'
         - image: registry.hub.docker.com/fcracker79/k8s-experiment-apigw
           context: ../docker/apigw
           sync:
-              auto: true
+              infer:
+
 deploy:
     helm:
         releases:

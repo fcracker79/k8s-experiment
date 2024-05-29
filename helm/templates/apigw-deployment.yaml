@@ -16,6 +16,8 @@ spec:
         - name: apigw
           image: {{ .Values.images.apigw.repository }}:{{ .Values.images.apigw.tag }}
           env:
+             - name: OC_AGENT_HOST
+               value: "{{ .Values.endpoints.services.infrastructure.oc_agent_host }}"
              - name: TCP_PORT
                value: "{{ .Values.endpoints.services.apigw.targetPort }}"
              - name: REST_COMPANY_HOST

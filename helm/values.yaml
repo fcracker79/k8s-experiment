@@ -24,3 +24,5 @@ endpoints:
             name: apigw-service
             port: 8080
             targetPort: 8080
+        infrastructure:
+            oc_agent_host: collector.linkerd-jaeger:55678
