@@ -14,9 +14,6 @@ build:
           context: ../docker/apigw
           sync:
               auto: true
-manifests:
-    rawYaml:
-        - ../k8s/*
 deploy:
     helm:
         releases:
