@@ -12,6 +12,10 @@ import (
 	_ "modernc.org/sqlite"
 	"google.golang.org/grpc"
 	pb "github.com/fcracker79/k8s-experiment/docker/grpc/user/proto"
+	"go.opencensus.io/trace"
+	"contrib.go.opencensus.io/exporter/ocagent"
+	"go.opencensus.io/plugin/ocgrpc"
+	"github.com/rs/zerolog"
 )
  
 type server struct {
@@ -96,6 +100,16 @@ func main() {
 	}
 	defer db.Close()
     CreateTable(db)
+	ocagentHost := os.Getenv("OC_AGENT_HOST")
+	oce, err := ocagent.NewExporter(
+		ocagent.WithInsecure(),
+		ocagent.WithReconnectionPeriod(5 * time.Second),
+		ocagent.WithAddress(ocagentHost),
+		ocagent.WithServiceName("voting"))
+	if err != nil {
+		log.Fatalf("Failed to create ocagent-exporter: %v", err)
+	}
+	trace.RegisterExporter(oce)
 
     tcpPort := getEnvString("TCP_PORT")
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", tcpPort))
@@ -103,11 +117,25 @@ func main() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	s := grpc.NewServer()
+	s := grpc.NewServer(
+		grpc.StatsHandler(&ocgrpc.ServerHandler{}),
+		grpc.UnaryInterceptor(serverLoggingInterceptor))
 	pb.RegisterUserServiceServer(s, &server{db: db})
 
 	log.Printf("Server listening on port %s", tcpPort)
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
+}
+
+func serverLoggingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	span := trace.FromContext(ctx)
+	traceID := span.SpanContext().TraceID.String()
+	spanID := span.SpanContext().SpanID.String()
+	log := zerolog.New(os.Stderr).With().Timestamp().
+		Str("traceId", traceID).
+		Str("spanId", spanID).
+		Logger()
+	log.Info().Msg("Request received")
+	return handler(log.WithContext(ctx), req)
 }
