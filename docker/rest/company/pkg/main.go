@@ -56,6 +56,7 @@ func main() {
 			Propagation: &b3.HTTPFormat{},
 		}
 	})
+	r.Use(LogMiddleware)
     r.Route("/companies", func(r chi.Router) {
         r.Get("/", listCompanies)    // GET List Companies
         r.Post("/", createCompany)   // POST Create a new Company
@@ -66,7 +67,6 @@ func main() {
             r.Delete("/", deleteCompany) // DELETE a specific Company
         })
     })
-	r.Use(LogMiddleware)
 
     http.ListenAndServe(fmt.Sprintf(":%s", getEnvString("TCP_PORT")), r)
 }
