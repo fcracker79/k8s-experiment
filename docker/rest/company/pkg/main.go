@@ -10,6 +10,12 @@ import (
 
     _ "modernc.org/sqlite"
     "github.com/go-chi/chi/v5"
+	"contrib.go.opencensus.io/exporter/ocagent"
+	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
+	"go.opencensus.io/trace"
+	"go.opencensus.io/plugin/ochttp/propagation/b3"
+	"go.opencensus.io/plugin/ochttp"
 )
 
 type Company struct {
@@ -33,8 +39,23 @@ func getEnvString(env string) string {
 func main() {
     db = InitDB("./storage.db")
     CreateTable(db)
+	ocagentHost := os.Getenv("OC_AGENT_HOST")
+	oce, err := ocagent.NewExporter(
+		ocagent.WithInsecure(),
+		ocagent.WithReconnectionPeriod(5*time.Second),
+		ocagent.WithAddress(ocagentHost),
+		ocagent.WithServiceName("apigw"))
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to create ocagent-exporter")
+	}
+	trace.RegisterExporter(oce)
     r := chi.NewRouter()
-
+	r.Use(func(next http.Handler) http.Handler {
+		return &ochttp.Handler{
+			Handler:     next,
+			Propagation: &b3.HTTPFormat{},
+		}
+	})
     r.Route("/companies", func(r chi.Router) {
         r.Get("/", listCompanies)    // GET List Companies
         r.Post("/", createCompany)   // POST Create a new Company
@@ -45,6 +66,7 @@ func main() {
             r.Delete("/", deleteCompany) // DELETE a specific Company
         })
     })
+	r.Use(LogMiddleware)
 
     http.ListenAndServe(fmt.Sprintf(":%s", getEnvString("TCP_PORT")), r)
 }
@@ -59,6 +81,21 @@ func InitDB(filepath string) *sql.DB {
         panic("db nil")
     }
     return db
+}
+
+func LogMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		span := trace.FromContext(r.Context())
+		traceID := span.SpanContext().TraceID.String()
+		spanID := span.SpanContext().SpanID.String()
+		log := zerolog.New(os.Stderr).With().Timestamp().
+			Str("traceId", traceID).
+			Str("spanId", spanID).
+			Logger()
+		ctx := log.WithContext(r.Context())
+		log.Info().Msg("Request received")
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 func CreateTable(db *sql.DB) {
