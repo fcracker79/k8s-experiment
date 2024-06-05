@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/plugin/ochttp/propagation/b3"
 	"go.opencensus.io/trace"
@@ -164,13 +165,22 @@ func deleteUser(w http.ResponseWriter, r *http.Request) {
 
 func createGrpcConnection() (*grpc.ClientConn, error) {
 	connection, err := grpc.NewClient(
-		getUserGrpcEndpoint(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+		getUserGrpcEndpoint(), 
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(new(ocgrpc.ClientHandler)),
+	)
 	return connection, err
+}
+
+func getHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &ochttp.Transport{},
+	}
 }
 
 func getCompany(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	resp, err := http.Get(fmt.Sprintf("%s/companies/%s", getCompanyHttpEndpoint(), id))
+	resp, err := getHTTPClient().Get(fmt.Sprintf("%s/companies/%s", getCompanyHttpEndpoint(), id))
 	if err != nil {
 		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not fetch company")
 	}
@@ -188,7 +198,7 @@ func getCompany(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAllCompanies(w http.ResponseWriter, r *http.Request) {
-	resp, err := http.Get(fmt.Sprintf("%s/companies", getCompanyHttpEndpoint()))
+	resp, err := getHTTPClient().Get(fmt.Sprintf("%s/companies", getCompanyHttpEndpoint()))
 	if err != nil {
 		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not fetch companies")
 	}
@@ -219,7 +229,7 @@ func createCompany(w http.ResponseWriter, r *http.Request) {
 
 	jsonStr := string(body)
 
-	resp, err := http.Post(fmt.Sprintf("%s/companies", getCompanyHttpEndpoint()), "application/json", strings.NewReader(jsonStr))
+	resp, err := getHTTPClient().Post(fmt.Sprintf("%s/companies", getCompanyHttpEndpoint()), "application/json", strings.NewReader(jsonStr))
 	if err != nil {
 		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not create company")
 	}
@@ -245,7 +255,7 @@ func deleteCompany(w http.ResponseWriter, r *http.Request) {
 		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not create delete request")
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := getHTTPClient().Do(req)
 	if err != nil {
 		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not delete company")
 	}
