@@ -179,16 +179,22 @@ func getHTTPClient() *http.Client {
 }
 
 func getCompany(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	id := chi.URLParam(r, "id")
-	resp, err := getHTTPClient().Get(fmt.Sprintf("%s/companies/%s", getCompanyHttpEndpoint(), id))
+	req, err := newHTTPRequest(ctx, "GET", fmt.Sprintf("%s/companies/%s", getCompanyHttpEndpoint(), id), nil)
+	req = req.WithContext(ctx)
 	if err != nil {
-		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not fetch company")
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not create fetch company")
+	}
+	resp, err := getHTTPClient().Do(req)
+	if err != nil {
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not fetch company")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
-			zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not read resp body")
+			zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not read resp body")
 		}
 		bodyString := string(bodyBytes)
 		w.Write([]byte(bodyString))
@@ -197,16 +203,32 @@ func getCompany(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getAllCompanies(w http.ResponseWriter, r *http.Request) {
-	resp, err := getHTTPClient().Get(fmt.Sprintf("%s/companies", getCompanyHttpEndpoint()))
+func newHTTPRequest(ctx context.Context, method, url string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequest(method, url, body)
 	if err != nil {
-		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not fetch companies")
+		return nil, err
+	}
+
+	// Very important: without this, it's impossible to propagate the trace
+	return req.WithContext(ctx), nil
+}
+
+func getAllCompanies(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	req, err := newHTTPRequest(ctx, "GET", fmt.Sprintf("%s/companies", getCompanyHttpEndpoint()), nil)
+	if err != nil {
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not create fetch companies")
+	}
+	req = req.WithContext(ctx)
+	resp, err := getHTTPClient().Do(req)
+	if err != nil {
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not fetch companies")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
-			zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not read resp body")
+			zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not read resp body")
 		}
 		bodyString := string(bodyBytes)
 		w.Write([]byte(bodyString))
@@ -216,29 +238,35 @@ func getAllCompanies(w http.ResponseWriter, r *http.Request) {
 }
 
 func createCompany(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not read request body")
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not read request body")
 	}
 
 	var company Company
 	err = json.Unmarshal(body, &company)
 	if err != nil {
-		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not unmarshal request body")
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not unmarshal request body")
 	}
 
 	jsonStr := string(body)
 
-	resp, err := getHTTPClient().Post(fmt.Sprintf("%s/companies", getCompanyHttpEndpoint()), "application/json", strings.NewReader(jsonStr))
+	req, err := newHTTPRequest(ctx, "POST", fmt.Sprintf("%s/companies", getCompanyHttpEndpoint()), strings.NewReader(jsonStr))
 	if err != nil {
-		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not create company")
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not create company request")
+	}
+	req = req.WithContext(ctx)
+	resp, err := getHTTPClient().Do(req)
+	if err != nil {
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not create company")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
-			log.Fatal().Err(err).Msg("could not read resp body")
+			zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not read resp body")
 		}
 		bodyString := string(bodyBytes)
 		w.Write([]byte(bodyString))
@@ -248,16 +276,17 @@ func createCompany(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteCompany(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	id := chi.URLParam(r, "id")
 
-	req, err := http.NewRequest("DELETE", fmt.Sprintf("%s/companies/%s", getCompanyHttpEndpoint(), id), nil)
+	req, err := newHTTPRequest(ctx, "DELETE", fmt.Sprintf("%s/companies/%s", getCompanyHttpEndpoint(), id), nil)
 	if err != nil {
-		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not create delete request")
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not create delete request")
 	}
-
+	req = req.WithContext(ctx)
 	resp, err := getHTTPClient().Do(req)
 	if err != nil {
-		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not delete company")
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not delete company")
 	}
 	defer resp.Body.Close()
 

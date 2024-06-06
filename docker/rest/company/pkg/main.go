@@ -93,7 +93,7 @@ func LogMiddleware(next http.Handler) http.Handler {
 			Str("spanId", spanID).
 			Logger()
 		ctx := log.WithContext(r.Context())
-		log.Info().Msg("Request received")
+		log.Info().Msgf("Request received, headers %v", r.Header)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
