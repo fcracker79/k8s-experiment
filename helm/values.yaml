@@ -29,3 +29,6 @@ endpoints:
 infrastructure:
     nats:
         hostname: nats.nats.svc.cluster.local
+        usersStream: k8s.experiment.users.stream
+        usersSubjects: k8s.experiment.users.>
+        createUserSubject: k8s.experiment.users.create

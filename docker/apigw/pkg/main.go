@@ -14,6 +14,7 @@ import (
 
 	"contrib.go.opencensus.io/exporter/ocagent"
 	"github.com/go-chi/chi/v5"
+	"github.com/nats-io/nats.go"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.opencensus.io/plugin/ocgrpc"
@@ -22,6 +23,13 @@ import (
 	"go.opencensus.io/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+)
+
+const (
+	natsCreateUserSubject = "NATS_CREATE_USER_SUBJECT"
+	natsUsersSubject      = "NATS_USERS_SUBJECTS"
+	natsUsersStream       = "NATS_USERS_STREAM"
+	natsUrl               = "NATS_URL"
 )
 
 type Company struct {
@@ -48,6 +56,11 @@ func LogMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
+	initNATS()
+	startHTTPServer()
+}
+
+func startHTTPServer() {
 	r := chi.NewRouter()
 	ocagentHost := os.Getenv("OC_AGENT_HOST")
 	oce, err := ocagent.NewExporter(
@@ -78,6 +91,9 @@ func main() {
 	r.Get("/companies", getAllCompanies)
 	r.Post("/companies", createCompany)
 	r.Delete("/companies/{id}", deleteCompany)
+
+	// Async endpoints
+	r.Post("/users", asyncCreateUser)
 
 	tcpPort := getEnvString("TCP_PORT")
 	fmt.Printf("Listening port %s\n", tcpPort)
@@ -148,6 +164,31 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
+func asyncCreateUser(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Fatal().Err(err).Msg("could not read request body")
+	}
+
+	conn, err := createNATSConnection()
+	if err != nil {
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not connect to NATS")
+	}
+
+	subject, err := getCreateUserNATSSubject()
+	if err != nil {
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not get NATS subject")
+	}
+
+	if conn.Publish(subject, body); err != nil {
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not publish message")
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+}
+
 func deleteUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := chi.URLParam(r, "id")
@@ -168,7 +209,7 @@ func deleteUser(w http.ResponseWriter, r *http.Request) {
 
 func createGrpcConnection() (*grpc.ClientConn, error) {
 	connection, err := grpc.NewClient(
-		getUserGrpcEndpoint(), 
+		getUserGrpcEndpoint(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithStatsHandler(new(ocgrpc.ClientHandler)),
 	)
@@ -298,4 +339,66 @@ func deleteCompany(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.Write([]byte("Could not delete company"))
 	}
+}
+
+func createNATSConnection() (*nats.Conn, error) {
+	return nats.Connect(getEnvString(natsUrl))
+}
+
+func getEnvStringOrError(env string) (string, error) {
+	if envVar, exists := os.LookupEnv(env); exists {
+		return envVar, nil
+	} else {
+		return "", fmt.Errorf("%s not set", env)
+	}
+}
+
+func getNATSStream() (string, error) {
+	return getEnvStringOrError(natsUsersStream)
+}
+
+func getNATSUsersSubjects() ([]string, error) {
+	strNatsSubjects, err := getEnvStringOrError(natsUsersSubject)
+	if err != nil {
+		return nil, err
+	}
+	return strings.Split(strNatsSubjects, ","), nil
+}
+
+func getNATSSubjects() ([]string, error) {
+	var res []string
+	usersSubjects, err := getNATSUsersSubjects()
+	if err != nil {
+		return nil, err
+	}
+	res = append(res, usersSubjects...)
+	return res, nil
+}
+
+func getCreateUserNATSSubject() (string, error) {
+	return getEnvStringOrError(natsCreateUserSubject)
+}
+
+func initNATS() error {
+	conn, err := createNATSConnection()
+	if err != nil {
+		return err
+	}
+	js, _ := conn.JetStream()
+
+	streamName, err := getNATSStream()
+	if err != nil {
+		return err
+	}
+
+	natsSubjects, err := getNATSSubjects()
+	if err != nil {
+		return err
+	}
+
+	_, err = js.AddStream(&nats.StreamConfig{
+		Name:     streamName,
+		Subjects: natsSubjects,
+	})
+	return err
 }
