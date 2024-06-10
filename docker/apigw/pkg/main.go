@@ -101,18 +101,19 @@ func getEnvString(env string) string {
 }
 
 func getUser(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	id := chi.URLParam(r, "id")
 	connection, err := createGrpcConnection()
 	if err != nil {
-		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("did not connect")
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("did not connect")
 	}
 	defer connection.Close()
 	c := pb.NewUserServiceClient(connection)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 	user, err := c.GetUser(ctx, &pb.User{Id: id})
 	if err != nil {
-		log.Fatal().Err(err).Msg("could not fetch user")
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not fetch user")
 	}
 	data, _ := json.Marshal(user)
 	w.Header().Set("Content-Type", "application/json")
@@ -120,6 +121,7 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func createUser(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Fatal().Err(err).Msg("could not read request body")
@@ -127,19 +129,19 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	var user pb.User
 	err = json.Unmarshal(body, &user)
 	if err != nil {
-		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not unmarshal request body")
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not unmarshal request body")
 	}
 	connection, err := createGrpcConnection()
 	if err != nil {
-		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("did not connect")
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("did not connect")
 	}
 	defer connection.Close()
 	c := pb.NewUserServiceClient(connection)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 	createdUser, err := c.CreateUser(ctx, &user)
 	if err != nil {
-		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not create user")
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not create user")
 	}
 	data, _ := json.Marshal(createdUser)
 	w.Header().Set("Content-Type", "application/json")
@@ -147,18 +149,19 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteUser(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	id := chi.URLParam(r, "id")
 	connection, err := createGrpcConnection()
 	if err != nil {
-		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("did not connect")
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("did not connect")
 	}
 	defer connection.Close()
 	c := pb.NewUserServiceClient(connection)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 	_, err = c.DeleteUser(ctx, &pb.User{Id: id})
 	if err != nil {
-		zerolog.Ctx(r.Context()).Fatal().Err(err).Msg("could not delete user")
+		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not delete user")
 	}
 	w.Write([]byte("User deleted"))
 }
