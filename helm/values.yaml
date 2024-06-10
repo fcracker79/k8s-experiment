@@ -26,3 +26,6 @@ endpoints:
             targetPort: 8080
         infrastructure:
             oc_agent_host: collector.linkerd-jaeger:55678
+infrastructure:
+    nats:
+        hostname: nats.nats.svc.cluster.local
