@@ -28,6 +28,15 @@ spec:
                value: {{ .Values.endpoints.services.grpc.user_service.name }}
              - name: GRPC_USER_PORT
                value: "{{ .Values.endpoints.services.grpc.user_service.port }}"
+             - name: NATS_URL
+               value: "{{ .Values.infrastructure.nats.hostname }}"
+             - name: NATS_USERS_STREAM
+               value: "{{ .Values.infrastructure.nats.usersStream }}"
+             - name: NATS_USERS_SUBJECTS
+               value: "{{ .Values.infrastructure.nats.usersSubjects }}"
+             - name: NATS_CREATE_USER_SUBJECT
+               value: "{{ .Values.infrastructure.nats.createUserSubject }}"
+
           ports:
             - name: http
               containerPort: {{ .Values.endpoints.services.apigw.targetPort }}
