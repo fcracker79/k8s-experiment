@@ -12,6 +12,8 @@ linkerd check                           # validate everything worked!
 kubectl create namespace k8s-experiment -o yaml | linkerd inject -|kubectl apply -f -
 linkerd jaeger install | kubectl apply -f -
 linkerd jaeger check
+
+kubectl create namespace nats
 ```
 
 Test

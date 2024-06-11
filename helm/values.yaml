@@ -28,7 +28,7 @@ endpoints:
             oc_agent_host: collector.linkerd-jaeger:55678
 infrastructure:
     nats:
-        hostname: nats.nats.svc.cluster.local
+        hostname: nats.nats.svc.cluster.local:4222
         usersStream: k8s.experiment.users.stream
         usersSubjects: k8s.experiment.users.>
         createUserSubject: k8s.experiment.users.create

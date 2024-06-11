@@ -23,6 +23,7 @@ import (
 	"go.opencensus.io/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 const (
@@ -56,7 +57,10 @@ func LogMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
-	initNATS()
+	err := initNATS()
+	if err != nil {
+		log.Fatal().Err(err).Msg("could not initialize NATS")
+	}
 	startHTTPServer()
 }
 
@@ -93,7 +97,7 @@ func startHTTPServer() {
 	r.Delete("/companies/{id}", deleteCompany)
 
 	// Async endpoints
-	r.Post("/users", asyncCreateUser)
+	r.Post("/async/users", asyncCreateUser)
 
 	tcpPort := getEnvString("TCP_PORT")
 	fmt.Printf("Listening port %s\n", tcpPort)
@@ -166,23 +170,34 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 
 func asyncCreateUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	logger := zerolog.Ctx(ctx)
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Fatal().Err(err).Msg("could not read request body")
+		logger.Fatal().Err(err).Msg("could not read request body")
 	}
 
 	conn, err := createNATSConnection()
 	if err != nil {
-		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not connect to NATS")
+		logger.Fatal().Err(err).Msg("could not connect to NATS")
 	}
 
 	subject, err := getCreateUserNATSSubject()
 	if err != nil {
-		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not get NATS subject")
+		logger.Fatal().Err(err).Msg("could not get NATS subject")
+	}
+	msg := &nats.Msg{
+		Subject: subject,
+		Data:    body,
 	}
 
-	if conn.Publish(subject, body); err != nil {
-		zerolog.Ctx(ctx).Fatal().Err(err).Msg("could not publish message")
+	propagator := propagation.TraceContext{}
+	headerCarrier := propagation.HeaderCarrier(msg.Header)
+	propagator.Inject(ctx, headerCarrier)
+
+	logger.Info().Msgf("Publishing message to subject %s, headers %v", subject, msg.Header)
+	if conn.PublishMsg(msg); err != nil {
+		logger.Fatal().Err(err).Msg("could not publish message")
 	}
 
 	w.Header().Set("Content-Type", "application/json")

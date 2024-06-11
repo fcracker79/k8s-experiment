@@ -11,6 +11,9 @@ spec:
     metadata:
       labels:
         app: apigw
+      annotations:
+        # Linkerd cannot detect NATs traffic automatically
+        config.linkerd.io/opaque-ports: "4222"
     spec:
       containers:
         - name: apigw

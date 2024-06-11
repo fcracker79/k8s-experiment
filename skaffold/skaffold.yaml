@@ -38,5 +38,9 @@ deploy:
               remoteChart: nats
               version: 1.1.12
               namespace: nats
-              createNamespace: true
+              # For some reasons this namespace is not create even if I specify `createNamespace: true`. I'll create it manually
+              createNamespace: false
+              setValueTemplates:
+                  namespaceOverride: nats
+                  config.jetstream.enabled: true
 
