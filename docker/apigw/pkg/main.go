@@ -397,23 +397,26 @@ func getCreateUserNATSSubject() (string, error) {
 func initNATS() error {
 	conn, err := createNATSConnection()
 	if err != nil {
-		return err
+		return fmt.Errorf("could not create NATS connection: %w", err)
 	}
 	js, _ := conn.JetStream()
 
 	streamName, err := getNATSStream()
 	if err != nil {
-		return err
+		return fmt.Errorf("could not get NATS stream: %w", err)
 	}
 
 	natsSubjects, err := getNATSSubjects()
 	if err != nil {
-		return err
+		return fmt.Errorf("could not get NATS subjects: %w", err)
 	}
 
 	_, err = js.AddStream(&nats.StreamConfig{
 		Name:     streamName,
 		Subjects: natsSubjects,
 	})
-	return err
+	if err != nil {
+		return fmt.Errorf("could not create NATS stream %s(%v): %w", streamName, natsSubjects, err)
+	}
+	return nil
 }
