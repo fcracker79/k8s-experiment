@@ -7,15 +7,22 @@ import (
     "net/http"
     "os"
     "time"
+	"context"
 
     _ "modernc.org/sqlite"
     "github.com/go-chi/chi/v5"
-	"contrib.go.opencensus.io/exporter/ocagent"
 	"github.com/rs/zerolog/log"
 	"github.com/rs/zerolog"
-	"go.opencensus.io/trace"
-	"go.opencensus.io/plugin/ochttp/propagation/b3"
-	"go.opencensus.io/plugin/ochttp"
+
+	"github.com/riandyrn/otelchi"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/trace"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 )
 
 type Company struct {
@@ -36,26 +43,46 @@ func getEnvString(env string) string {
     }
 }
 
+func initTracer() (*sdktrace.TracerProvider, error) {
+	opts := []otlptracehttp.Option{
+		otlptracehttp.WithEndpoint(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")),
+		otlptracehttp.WithHeaders(map[string]string{"X-ServiceName": "company-service"}),
+		otlptracehttp.WithTimeout(30 * time.Second),
+	}
+	opts = append(opts, otlptracehttp.WithInsecure())
+	client := otlptracehttp.NewClient(opts...)
+
+	exporter, err := otlptrace.New(context.Background(), client)
+	if err != nil {
+		return nil, err
+	}
+
+	// In a production application, use sdktrace.ProbabilitySampler with a desired probability.
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(0.1)),
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceName("CompanyService"))),
+	)
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	return tp, err
+}
+
 func main() {
     db = InitDB("./storage.db")
     CreateTable(db)
-	ocagentHost := os.Getenv("OC_AGENT_HOST")
-	oce, err := ocagent.NewExporter(
-		ocagent.WithInsecure(),
-		ocagent.WithReconnectionPeriod(5*time.Second),
-		ocagent.WithAddress(ocagentHost),
-		ocagent.WithServiceName("apigw"))
+	tp, err := initTracer()
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create ocagent-exporter")
+		log.Fatal().Err(err).Msg("could not initialize tracer")
 	}
-	trace.RegisterExporter(oce)
-    r := chi.NewRouter()
-	r.Use(func(next http.Handler) http.Handler {
-		return &ochttp.Handler{
-			Handler:     next,
-			Propagation: &b3.HTTPFormat{},
+	defer func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			log.Printf("Error shutting down tracer provider: %v", err)
 		}
-	})
+	}()
+
+    r := chi.NewRouter()
+	r.Use(otelchi.Middleware("company", otelchi.WithChiRoutes(r)))
 	r.Use(LogMiddleware)
     r.Route("/companies", func(r chi.Router) {
         r.Get("/", listCompanies)    // GET List Companies
@@ -85,15 +112,24 @@ func InitDB(filepath string) *sql.DB {
 
 func LogMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		span := trace.FromContext(r.Context())
-		traceID := span.SpanContext().TraceID.String()
-		spanID := span.SpanContext().SpanID.String()
+		span := trace.SpanFromContext(r.Context())
+		
+		traceID, err := span.SpanContext().TraceID().MarshalJSON()
+		if err != nil {
+			log.Fatal().Err(err).Msg("could not marshal traceID")
+		}
+
+		spanID, err := span.SpanContext().SpanID().MarshalJSON()
+		if err != nil {
+			log.Fatal().Err(err).Msg("could not marshal spanID")
+		}
+
 		log := zerolog.New(os.Stderr).With().Timestamp().
-			Str("traceId", traceID).
-			Str("spanId", spanID).
+			Str("traceId", string(traceID)).
+			Str("spanId", string(spanID)).
 			Logger()
 		ctx := log.WithContext(r.Context())
-		log.Info().Msgf("Request received, headers %v", r.Header)
+		log.Info().Msg("Request received")
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

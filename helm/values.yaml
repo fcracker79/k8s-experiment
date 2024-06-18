@@ -25,7 +25,7 @@ endpoints:
             port: 8080
             targetPort: 8080
         infrastructure:
-            oc_agent_host: collector.linkerd-jaeger:55678
+            opentelemetry_http_connector_endpoint: collector.linkerd-jaeger:4318
 infrastructure:
     nats:
         hostname: nats.nats.svc.cluster.local:4222

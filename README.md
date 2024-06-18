@@ -26,3 +26,10 @@ curl -XPOST -d '{"id": "company1"}' -H 'Content-Type: application/json' -v http:
 curl -H 'Content-Type: application/json' -v http://minikube.ingress/users/user1
 curl -H 'Content-Type: application/json' -v http://minikube.ingress/companies/company1
 ```
+
+For async:
+
+1. On NATS box:
+   `nats -s nats.nats.svc.cluster.local:4222 subscribe 'k8s.experiment.users.>'`
+2. `curl -XPOST -d '{"id": "user1"}' -H 'Content-Type: application/json' -v http://minikube.ingress/async/users`
+

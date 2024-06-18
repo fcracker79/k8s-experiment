@@ -12,19 +12,26 @@ import (
 
 	pb "github.com/fcracker79/k8s-experiment/docker/rest/apigw/proto/user"
 
-	"contrib.go.opencensus.io/exporter/ocagent"
 	"github.com/go-chi/chi/v5"
 	"github.com/nats-io/nats.go"
+	"github.com/riandyrn/otelchi"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"go.opencensus.io/plugin/ocgrpc"
-	"go.opencensus.io/plugin/ochttp"
-	"go.opencensus.io/plugin/ochttp/propagation/b3"
-	"go.opencensus.io/trace"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"go.opentelemetry.io/otel/propagation"
 )
+
+var tracer trace.Tracer
 
 const (
 	natsCreateUserSubject = "NATS_CREATE_USER_SUBJECT"
@@ -41,14 +48,49 @@ type Company struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+func initTracer() (*sdktrace.TracerProvider, error) {
+	opts := []otlptracehttp.Option{
+		otlptracehttp.WithEndpoint(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")),
+		otlptracehttp.WithHeaders(map[string]string{"X-ServiceName": "apigw-service"}),
+		otlptracehttp.WithTimeout(30 * time.Second),
+	}
+	opts = append(opts, otlptracehttp.WithInsecure())
+	client := otlptracehttp.NewClient(opts...)
+
+	exporter, err := otlptrace.New(context.Background(), client)
+	if err != nil {
+		return nil, err
+	}
+
+	// In a production application, use sdktrace.ProbabilitySampler with a desired probability.
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(0.1)),
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceName("APIGwService"))),
+	)
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	tracer = otel.Tracer("apigw")
+	return tp, nil
+}
+
 func LogMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		span := trace.FromContext(r.Context())
-		traceID := span.SpanContext().TraceID.String()
-		spanID := span.SpanContext().SpanID.String()
+		span := trace.SpanFromContext(r.Context())
+		
+		traceID, err := span.SpanContext().TraceID().MarshalJSON()
+		if err != nil {
+			log.Fatal().Err(err).Msg("could not marshal traceID")
+		}
+
+		spanID, err := span.SpanContext().SpanID().MarshalJSON()
+		if err != nil {
+			log.Fatal().Err(err).Msg("could not marshal spanID")
+		}
+
 		log := zerolog.New(os.Stderr).With().Timestamp().
-			Str("traceId", traceID).
-			Str("spanId", spanID).
+			Str("traceId", string(traceID)).
+			Str("spanId", string(spanID)).
 			Logger()
 		ctx := log.WithContext(r.Context())
 		log.Info().Msg("Request received")
@@ -57,7 +99,17 @@ func LogMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
-	err := initNATS()
+	tp, err := initTracer()
+	if err != nil {
+		log.Fatal().Err(err).Msg("could not initialize tracer")
+	}
+	defer func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			log.Printf("Error shutting down tracer provider: %v", err)
+		}
+	}()
+
+	err = initNATS()
 	if err != nil {
 		log.Fatal().Err(err).Msg("could not initialize NATS")
 	}
@@ -66,23 +118,8 @@ func main() {
 
 func startHTTPServer() {
 	r := chi.NewRouter()
-	ocagentHost := os.Getenv("OC_AGENT_HOST")
-	oce, err := ocagent.NewExporter(
-		ocagent.WithInsecure(),
-		ocagent.WithReconnectionPeriod(5*time.Second),
-		ocagent.WithAddress(ocagentHost),
-		ocagent.WithServiceName("apigw"))
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create ocagent-exporter")
-	}
-	trace.RegisterExporter(oce)
 
-	r.Use(func(next http.Handler) http.Handler {
-		return &ochttp.Handler{
-			Handler:     next,
-			Propagation: &b3.HTTPFormat{},
-		}
-	})
+	r.Use(otelchi.Middleware("apigw", otelchi.WithChiRoutes(r)))
 	r.Use(LogMiddleware)
 
 	// User endpoints
@@ -172,6 +209,7 @@ func asyncCreateUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := zerolog.Ctx(ctx)
 
+	logger.Info().Msgf("Received async create user request, ctx %v+", ctx)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("could not read request body")
@@ -186,16 +224,20 @@ func asyncCreateUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("could not get NATS subject")
 	}
+	header := make(nats.Header)
+
+	_, span := tracer.Start(ctx, "PublishWithTrace")
+	defer span.End()
+
+	headerCarrier := propagation.HeaderCarrier(header)
+	otel.GetTextMapPropagator().Inject(ctx, headerCarrier)
+	logger.Info().Msgf("Publishing message to subject %s, headers %v, headerCarrier %v", subject, header, headerCarrier)
 	msg := &nats.Msg{
 		Subject: subject,
 		Data:    body,
+		Header:  header,
 	}
 
-	propagator := propagation.TraceContext{}
-	headerCarrier := propagation.HeaderCarrier(msg.Header)
-	propagator.Inject(ctx, headerCarrier)
-
-	logger.Info().Msgf("Publishing message to subject %s, headers %v", subject, msg.Header)
 	if conn.PublishMsg(msg); err != nil {
 		logger.Fatal().Err(err).Msg("could not publish message")
 	}
@@ -226,14 +268,15 @@ func createGrpcConnection() (*grpc.ClientConn, error) {
 	connection, err := grpc.NewClient(
 		getUserGrpcEndpoint(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithStatsHandler(new(ocgrpc.ClientHandler)),
+		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
 	)
 	return connection, err
 }
 
 func getHTTPClient() *http.Client {
 	return &http.Client{
-		Transport: &ochttp.Transport{},
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
 	}
 }
 
