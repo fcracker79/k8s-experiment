@@ -20,8 +20,8 @@ spec:
         - name: apigw
           image: {{ .Values.images.apigw.repository }}:{{ .Values.images.apigw.tag }}
           env:
-             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-               value: "{{ .Values.endpoints.services.infrastructure.opentelemetry_http_connector_endpoint }}"
+             - name: GRPC_OTEL_EXPORTER_OTLP_ENDPOINT
+               value: "{{ .Values.endpoints.services.infrastructure.opentelemetry_grpc_connector_endpoint }}"
              - name: TCP_PORT
                value: "{{ .Values.endpoints.services.apigw.targetPort }}"
              - name: REST_COMPANY_HOST

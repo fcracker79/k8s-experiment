@@ -1,1 +1,4 @@
 *.swp
+docker/apigw/main
+docker/rest/company/main
+

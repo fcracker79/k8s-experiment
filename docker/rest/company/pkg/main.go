@@ -16,13 +16,14 @@ import (
 
 	"github.com/riandyrn/otelchi"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/trace"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 )
 
 type Company struct {
@@ -43,41 +44,64 @@ func getEnvString(env string) string {
     }
 }
 
-func initTracer() (*sdktrace.TracerProvider, error) {
-	opts := []otlptracehttp.Option{
-		otlptracehttp.WithEndpoint(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")),
-		otlptracehttp.WithHeaders(map[string]string{"X-ServiceName": "company-service"}),
-		otlptracehttp.WithTimeout(30 * time.Second),
+func initConn() (*grpc.ClientConn, error) {
+	conn, err := grpc.NewClient(os.Getenv("GRPC_OTEL_EXPORTER_OTLP_ENDPOINT"),
+		// Note the use of insecure transport here. TLS is recommended in production.
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gRPC connection to collector: %w", err)
 	}
-	opts = append(opts, otlptracehttp.WithInsecure())
-	client := otlptracehttp.NewClient(opts...)
 
-	exporter, err := otlptrace.New(context.Background(), client)
+	return conn, err
+}
+
+func initTracerProvider(conn *grpc.ClientConn) (func(context.Context) error, error) {
+	ctx := context.Background()
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			// The service name used to display traces in backends
+			semconv.ServiceNameKey.String("CompanyService"),
+		),
+	)
 	if err != nil {
 		return nil, err
 	}
+	traceExporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create trace exporter: %w", err)
+	}
 
-	// In a production application, use sdktrace.ProbabilitySampler with a desired probability.
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(0.1)),
-		sdktrace.WithBatcher(exporter),
-		sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceName("CompanyService"))),
+	// Register the trace exporter with a TracerProvider, using a batch
+	// span processor to aggregate spans before export.
+	bsp := sdktrace.NewBatchSpanProcessor(traceExporter)
+	tracerProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithResource(res),
+		sdktrace.WithSpanProcessor(bsp),
 	)
-	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
-	return tp, err
+	otel.SetTracerProvider(tracerProvider)
+
+	// Set global propagator to tracecontext (the default is no-op).
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	// Shutdown will flush any remaining spans and shut down the exporter.
+	return tracerProvider.Shutdown, nil
 }
 
 func main() {
     db = InitDB("./storage.db")
     CreateTable(db)
-	tp, err := initTracer()
+	otelCon, err := initConn()
+	if err != nil {
+		log.Fatal().Err(err).Msg("could not initialize tracer")
+	}
+	shutdownTracerProvider, err := initTracerProvider(otelCon)
 	if err != nil {
 		log.Fatal().Err(err).Msg("could not initialize tracer")
 	}
 	defer func() {
-		if err := tp.Shutdown(context.Background()); err != nil {
-			log.Printf("Error shutting down tracer provider: %v", err)
+		if err := shutdownTracerProvider(context.Background()); err != nil {
+			log.Fatal().Err(err).Msg("Failed to shutdown TracerProvider")
 		}
 	}()
 

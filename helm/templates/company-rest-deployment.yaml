@@ -16,8 +16,8 @@ spec:
         - name: rest-company
           image: {{ .Values.images.rest_company.repository }}:{{ .Values.images.rest_company.tag }}
           env:
-             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-               value: "{{ .Values.endpoints.services.infrastructure.opentelemetry_http_connector_endpoint }}"
+             - name: GRPC_OTEL_EXPORTER_OTLP_ENDPOINT
+               value: "{{ .Values.endpoints.services.infrastructure.opentelemetry_grpc_connector_endpoint }}"
              - name: TCP_PORT
                value: "{{ .Values.endpoints.services.rest.company_service.targetPort }}"
           ports:

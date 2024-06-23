@@ -4,7 +4,11 @@ Install
 ```
 skaffold config set --global local-cluster true
 minikube addons enable ingress
+
 curl -sL run.linkerd.io/install | sh
+or
+curl --proto '=https' --tlsv1.2 -sSfL https://run.linkerd.io/install-edge | sh
+
 linkerd check --pre                     # validate that Linkerd can be installed
 linkerd install --crds | kubectl apply -f - # install the Linkerd CRDs
 linkerd --set proxyInit.runAsRoot=true install | kubectl apply -f -    # install the control plane into the 'linkerd' namespace

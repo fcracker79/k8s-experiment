@@ -15,13 +15,13 @@ import (
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	"go.opentelemetry.io/otel/trace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"google.golang.org/grpc/credentials/insecure"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 )
  
 type server struct {
@@ -29,29 +29,48 @@ type server struct {
 	db *sql.DB
 }
 
-func initTracer() (*sdktrace.TracerProvider, error) {
-	opts := []otlptracehttp.Option{
-		otlptracehttp.WithEndpoint(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")),
-		otlptracehttp.WithHeaders(map[string]string{"X-ServiceName": "apigw-service"}),
-		otlptracehttp.WithTimeout(30 * time.Second),
+func initConn() (*grpc.ClientConn, error) {
+	conn, err := grpc.NewClient(os.Getenv("GRPC_OTEL_EXPORTER_OTLP_ENDPOINT"),
+		// Note the use of insecure transport here. TLS is recommended in production.
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gRPC connection to collector: %w", err)
 	}
-	opts = append(opts, otlptracehttp.WithInsecure())
-	client := otlptracehttp.NewClient(opts...)
 
-	exporter, err := otlptrace.New(context.Background(), client)
+	return conn, err
+}
+
+func initTracerProvider(conn *grpc.ClientConn) (*sdktrace.TracerProvider, error) {
+	ctx := context.Background()
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			// The service name used to display traces in backends
+			semconv.ServiceNameKey.String("UserService"),
+		),
+	)
 	if err != nil {
 		return nil, err
 	}
+	traceExporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create trace exporter: %w", err)
+	}
 
-	// In a production application, use sdktrace.ProbabilitySampler with a desired probability.
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(0.1)),
-		sdktrace.WithBatcher(exporter),
-		sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceName("APIGwService"))),
+	// Register the trace exporter with a TracerProvider, using a batch
+	// span processor to aggregate spans before export.
+	bsp := sdktrace.NewBatchSpanProcessor(traceExporter)
+	tracerProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithResource(res),
+		sdktrace.WithSpanProcessor(bsp),
 	)
-	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
-	return tp, err
+	otel.SetTracerProvider(tracerProvider)
+
+	// Set global propagator to tracecontext (the default is no-op).
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	// Shutdown will flush any remaining spans and shut down the exporter.
+	return tracerProvider, nil
 }
 
 func (s *server) CreateUser(ctx context.Context, in *pb.User) (*pb.User, error) {
@@ -125,11 +144,19 @@ func CreateTable(db *sql.DB) {
 }
 
 func main() {
-	tp, err := initTracer()
+	otelCon, err := initConn()
 	if err != nil {
-		log.Fatal().Msgf("failed to initialize tracing: %v", err)
+		log.Fatal().Err(err).Msg("could not initialize tracer")
 	}
-	defer tp.Shutdown(context.Background())
+	tracerProvider, err := initTracerProvider(otelCon)
+	if err != nil {
+		log.Fatal().Err(err).Msg("could not initialize tracer")
+	}
+	defer func() {
+		if err := tracerProvider.Shutdown(context.Background()); err != nil {
+			log.Fatal().Err(err).Msg("Failed to shutdown TracerProvider")
+		}
+	}()
 
 	db, err := sql.Open("sqlite", "./user.db")
 	if err != nil {
@@ -147,7 +174,7 @@ func main() {
 	s := grpc.NewServer(
 		grpc.StatsHandler(
 			otelgrpc.NewServerHandler(
-				otelgrpc.WithTracerProvider(tp),
+				otelgrpc.WithTracerProvider(tracerProvider),
 			),
 		),
 		grpc.UnaryInterceptor(serverLoggingInterceptor))

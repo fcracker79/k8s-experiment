@@ -4,6 +4,8 @@ metadata:
   name: ingress
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
+    # Without this, it routes requests directly to the service target pods rather than the service itself. That is not what we want if we use Linkerd
+    nginx.ingress.kubernetes.io/service-upstream: "true"
 spec:
   rules:
   - http:
