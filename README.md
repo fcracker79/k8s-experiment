@@ -37,3 +37,7 @@ For async:
    `nats -s nats.nats.svc.cluster.local:4222 subscribe 'k8s.experiment.users.>'`
 2. `curl -XPOST -d '{"id": "user1"}' -H 'Content-Type: application/json' -v http://minikube.ingress/async/users`
 
+Notes
+=====
+Jaeger dashboard shows `linkerd-proxy` as service name.
+This problem is addressed at https://github.com/linkerd/linkerd2/issues/11157 and, at the time of writing, is still open.
