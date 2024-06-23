@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: async-user
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: async-user
+  template:
+    metadata:
+      labels:
+        app: async-user
+      annotations:
+        # Linkerd cannot detect NATs traffic automatically
+        config.linkerd.io/opaque-ports: "4222"
+        config.linkerd.io/skip-outbound-ports: "4222"
+    spec:
+      containers:
+        - name: async-user
+          image: {{ .Values.images.async_user.repository }}:{{ .Values.images.async_user.tag }}
+          env:
+             - name: GRPC_OTEL_EXPORTER_OTLP_ENDPOINT
+               value: "{{ .Values.endpoints.services.infrastructure.opentelemetry_grpc_connector_endpoint }}"
+             - name: GRPC_USER_HOST
+               value: {{ .Values.endpoints.services.grpc.user_service.name }}
+             - name: GRPC_USER_PORT
+               value: "{{ .Values.endpoints.services.grpc.user_service.port }}"
+             - name: NATS_URL
+               value: "{{ .Values.infrastructure.nats.hostname }}"
+             - name: NATS_CREATE_USER_SUBJECT
+               value: "{{ .Values.infrastructure.nats.createUserSubject }}"
+
