@@ -7,7 +7,10 @@ build-grpc:
 build-apigw:
 	docker build -t fcracker79/k8s-experiment-apigw:0.0.1 docker/apigw
 
-build-images: build-rest build-grpc build-apigw
+build-async-user:
+	docker build -t fcracker79/k8s-experiment-apigw:0.0.1 docker/nats/async_users
+
+build-images: build-rest build-grpc build-apigw build-async-user
 
 deploy-grpc: build-grpc
 	docker push fcracker79/k8s-experiment-user:0.0.1
@@ -18,7 +21,10 @@ deploy-rest: build-rest
 deploy-apigw: build-apigw
 	docker push fcracker79/k8s-experiment-apigw:0.0.1
 
-deploy-images: deploy-rest deploy-grpc deploy-apigw
+deploy-async-user: build-async-user
+	docker push fcracker79/k8s-experiment-async-user:0.0.1
+
+deploy-images: deploy-rest deploy-grpc deploy-apigw deploy-async-user
 
 install-chart:
 	helm upgrade test-release helm --namespace test --install

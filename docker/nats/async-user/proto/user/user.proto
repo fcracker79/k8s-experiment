@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package user;
+
+option go_package = "github.com/fcracker79/k8s-experiment/docker/grpc/user/proto"; 
+
+message User {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string created_at = 4;
+  string updated_at = 5;
+}
+
+service UserService {
+  rpc CreateUser (User) returns (User) {}
+  rpc GetUser (User) returns (User) {}
+  rpc UpdateUser (User) returns (User) {}
+  rpc DeleteUser (User) returns (User) {}
+}

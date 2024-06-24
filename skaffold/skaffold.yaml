@@ -16,6 +16,12 @@ build:
           context: ../docker/apigw
           sync:
               infer:
+                  - '**/*'
+        - image: registry.hub.docker.com/fcracker79/k8s-experiment-async-user
+          context: ../docker/nats/async-user
+          sync:
+              infer:
+                  - '**/*'
 
 deploy:
     helm:
@@ -33,6 +39,8 @@ deploy:
                   images.grpc_user.tag: "{{.IMAGE_TAG_registry_hub_docker_com_fcracker79_k8s_experiment_user}}@{{.IMAGE_DIGEST_registry_hub_docker_com_fcracker79_k8s_experiment_user}}"
                   images.apigw.repository: "{{.IMAGE_REPO_registry_hub_docker_com_fcracker79_k8s_experiment_apigw}}"
                   images.apigw.tag: "{{.IMAGE_TAG_registry_hub_docker_com_fcracker79_k8s_experiment_apigw}}@{{.IMAGE_DIGEST_registry_hub_docker_com_fcracker79_k8s_experiment_apigw}}"
+                  images.async_user.repository: "{{.IMAGE_REPO_registry_hub_docker_com_fcracker79_k8s_experiment_async_user}}"
+                  images.async_user.tag: "{{.IMAGE_TAG_registry_hub_docker_com_fcracker79_k8s_experiment_apigw}}@{{.IMAGE_DIGEST_registry_hub_docker_com_fcracker79_k8s_experiment_async_user}}"
             - name: nats
               repo: https://nats-io.github.io/k8s/helm/charts/
               remoteChart: nats
