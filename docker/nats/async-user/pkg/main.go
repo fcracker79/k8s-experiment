@@ -19,6 +19,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 )
 
 const (
@@ -45,6 +49,19 @@ func main() {
 	logger := zerolog.New(os.Stderr)
 	ctx := logger.WithContext(context.Background())
 
+	otelCon, err := initOtelConn()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("could not initialize tracer")
+	}
+	shutdownTracerProvider, err := initTracerProvider(otelCon)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("could not initialize tracer")
+	}
+	defer func() {
+		if err := shutdownTracerProvider(context.Background()); err != nil {
+			logger.Fatal().Err(err).Msg("Failed to shutdown TracerProvider")
+		}
+	}()
 	// Connect to a NATS server
 	nc, err := createNATSConnection()
 	if err != nil {
@@ -76,11 +93,12 @@ func main() {
 }
 
 func createUserFromMessage(ctx context.Context, msg *nats.Msg) {
-	ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(msg.Header))
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	extractCtx := otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(msg.Header))
+	ctx, cancel := context.WithTimeout(extractCtx, 30*time.Second)
 	defer cancel()
 	logger := zerolog.Ctx(ctx)
-	span := trace.SpanFromContext(ctx)
+	logger.Info().Msgf("Received a message: %s, headers %v\n", string(msg.Data), msg.Header)
+	span := trace.SpanFromContext(extractCtx)
 	spanID, err := span.SpanContext().SpanID().MarshalJSON()	
 	if err != nil {
 		logger.Fatal().Err(err).Msg("could not marshal spanID")
@@ -124,4 +142,48 @@ func createGrpcConnection() (*grpc.ClientConn, error) {
 
 func getUserGrpcEndpoint() string {
 	return fmt.Sprintf("%s:%s", getEnvString(grpcUserHost), getEnvString("GRPC_USER_PORT"))
+}
+
+func initTracerProvider(conn *grpc.ClientConn) (func(context.Context) error, error) {
+	ctx := context.Background()
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			// The service name used to display traces in backends
+			semconv.ServiceNameKey.String("APIGWService"),
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+	traceExporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create trace exporter: %w", err)
+	}
+
+	// Register the trace exporter with a TracerProvider, using a batch
+	// span processor to aggregate spans before export.
+	bsp := sdktrace.NewBatchSpanProcessor(traceExporter)
+	tracerProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithResource(res),
+		sdktrace.WithSpanProcessor(bsp),
+	)
+	otel.SetTracerProvider(tracerProvider)
+
+	// Set global propagator to tracecontext (the default is no-op).
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	// Shutdown will flush any remaining spans and shut down the exporter.
+	return tracerProvider.Shutdown, nil
+}
+
+func initOtelConn() (*grpc.ClientConn, error) {
+	conn, err := grpc.NewClient(os.Getenv("GRPC_OTEL_EXPORTER_OTLP_ENDPOINT"),
+		// Note the use of insecure transport here. TLS is recommended in production.
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gRPC connection to collector: %w", err)
+	}
+
+	return conn, err
 }
