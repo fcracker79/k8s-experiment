@@ -18,7 +18,26 @@ linkerd jaeger install | kubectl apply -f -
 linkerd jaeger check
 
 kubectl create namespace nats
+kubectl create namespace prometheus
+kubectl create namespace grafana
 ```
+
+Deploy
+=======
+
+1. Deploy the artifacts: `make run`
+2. Expose the Prometheus server: `kubectl expose service kube-prometheus-stack-prometheus --namespace prometheus --type=NodePort --target-port=9090 --name=prometheus-server-np`
+3. Get the minikube URL for the exposed server: `minikube service prometheus-server-np --url --namespace prometheus`
+4. Expose the Grafana server: `kubectl expose service grafana --type=NodePort --target-port=3000 --name=grafana-np --namespace grafana`
+5. Get the minikube URL for the exposed server: `minikube service grafana-np --url --namespace grafana`
+6. Get the password to access grafana: `kubectl get secret --namespace grafana grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo`
+7. Access grafana using the `admin` account and the password found at previous point
+4. Expose the Grafana server: `kubectl expose service grafana --type=NodePort --target-port=3000 --name=grafana-np --namespace grafana`
+5. Get the minikube URL for the exposed server: `minikube service grafana-np --url --namespace grafana`
+6. Get the password to access grafana: `kubectl get secret --namespace grafana grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo`
+7. Access grafana using the `admin` account and the password found at previous point
+8. Install Prometheus datasource to Grafana, URL `http://kube-prometheus-stack-prometheus.prometheus.svc.cluster.local:9090`
+9. Import dashboards
 
 Test
 ====

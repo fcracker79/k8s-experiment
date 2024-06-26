@@ -51,4 +51,19 @@ deploy:
               setValueTemplates:
                   namespaceOverride: nats
                   config.jetstream.enabled: true
+            - name: kube-prometheus-stack
+              remoteChart: kube-prometheus-stack
+              repo: https://prometheus-community.github.io/helm-charts
+              namespace: prometheus
+              createNamespace: false
+              setValues:
+                namespaceOverride: prometheus
+
+            - name: grafana
+              remoteChart: grafana
+              repo: https://grafana.github.io/helm-charts
+              namespace: grafana
+              createNamespace: false
+              setValues:
+                namespaceOverride: grafana
 
