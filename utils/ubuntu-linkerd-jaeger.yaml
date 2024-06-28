@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    config.linkerd.io/skip-outbound-ports: "4222"
+    config.linkerd.io/proxy-opaque-ports: "4222"
+  labels:
+    run: ubuntu
+  name: ubuntu
+  namespace: linkerd-jaeger
+spec:
+  containers:
+  - args:
+    - bash
+    - -c
+    - "sleep infinity"
+    image: ubuntu
+    imagePullPolicy: Always
+    name: ubuntu
+  dnsPolicy: ClusterFirst

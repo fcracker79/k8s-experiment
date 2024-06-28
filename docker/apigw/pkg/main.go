@@ -28,9 +28,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/metric"
 )
 
 var tracer trace.Tracer
+var meter = otel.Meter("APIGw")
+var counter metric.Int64Counter
 
 const (
 	natsCreateUserSubject = "NATS_CREATE_USER_SUBJECT"
@@ -92,8 +95,24 @@ func initTracerProvider(conn *grpc.ClientConn) (func(context.Context) error, err
 	return tracerProvider.Shutdown, nil
 }
 
+func initMetrics() error {
+	var err error
+	counter, err = meter.Int64Counter(
+		"test.my_counter",
+		metric.WithUnit("1"),
+		metric.WithDescription("Just a test counter"),
+	)
+	return err
+}
+
+func incNumRequests(ctx context.Context) {
+	counter.Add(ctx, 1)
+}
+
 func LogMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		incNumRequests(r.Context())
+
 		span := trace.SpanFromContext(r.Context())
 		
 		traceID, err := span.SpanContext().TraceID().MarshalJSON()
@@ -130,7 +149,8 @@ func main() {
 			log.Fatal().Err(err).Msg("Failed to shutdown TracerProvider")
 		}
 	}()
-
+	initMetrics()
+	
 	err = initNATS()
 	if err != nil {
 		log.Fatal().Err(err).Msg("could not initialize NATS")

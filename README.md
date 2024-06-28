@@ -20,6 +20,7 @@ linkerd jaeger check
 kubectl create namespace nats
 kubectl create namespace prometheus
 kubectl create namespace grafana
+kubectl create namespace opentelemetry-collector
 ```
 
 Deploy
@@ -60,3 +61,8 @@ Notes
 =====
 Jaeger dashboard shows `linkerd-proxy` as service name.
 This problem is addressed at https://github.com/linkerd/linkerd2/issues/11157 and, at the time of writing, is still open.
+
+Problems
+========
+Jaeger collector fails to expose its own metrics as `curl -v http://collector.linkerd-jaeger.svc.cluster.local:14268/metrics` fails with HTTP 502. I see `[  5271.644211s]  INFO ThreadId(01) inbound:server{port=14268}:rescue{client.addr=[::ffff:10.244.120.126]:55136}: linkerd_app_core::errors::respond: HTTP/1.1 request failed error=error trying to connect: Connection refused (os error 111) error.sources=[Connection refused (os error 111)]` in the collector logs, linkerd-proxy container. That happens even though the port results to be open in the pod descriptor.
+Instead, I can find metrics in `http://collector.linkerd-jaeger.svc.cluster.local:8888/metrics`.
