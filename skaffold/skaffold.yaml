@@ -67,3 +67,11 @@ deploy:
               setValues:
                 namespaceOverride: grafana
 
+            - name: OTLP collector
+              remoteChart: opentelemetry-collector
+              repo: https://open-telemetry.github.io/opentelemetry-helm-charts
+              namespace: opentelemetry-collector
+              createNamespace: false
+              valueFiles:
+                - ../config/opentelemetry_collector/values.yaml
+              
